@@ -66,7 +66,7 @@ NS_ASSUME_NONNULL_BEGIN
     NSLog(@"%d \t %s", (int)__LINE__, __func__);
 #endif
     PLPlayer *player = _plPlayer;
-    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+    dispatch_async(dispatch_get_main_queue(), ^{
         [player stop];
     });
 }
