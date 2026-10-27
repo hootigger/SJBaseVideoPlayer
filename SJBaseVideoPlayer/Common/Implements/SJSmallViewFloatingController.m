@@ -6,6 +6,7 @@
 //
 
 #import "SJSmallViewFloatingController.h"
+#import "SJPlayerWindowContext.h"
 #import <UIKit/UIGraphicsRendererSubclass.h>
 #import "UIView+SJBaseVideoPlayerExtended.h"
 #if __has_include(<SJUIKit/NSObject+SJObserverHelper.h>)
@@ -138,7 +139,7 @@ NS_ASSUME_NONNULL_BEGIN
             superview = currentViewController.view;
         }
         else {
-            superview = UIApplication.sharedApplication.keyWindow;
+            superview = SJPlayerWindowForView(_targetSuperview);
         }
         
         if ( self.floatingView.superview != superview ) {

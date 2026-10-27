@@ -7,6 +7,7 @@
 //
 
 #import "SJDeviceVolumeAndBrightnessController.h"
+#import "SJPlayerWindowContext.h"
 #import "SJBaseVideoPlayerResourceLoader.h"
 #import "SJBaseVideoPlayerConst.h"
 #import "SJPlayerView.h"
@@ -343,7 +344,7 @@ static NSNotificationName const SJDeviceBrightnessDidChangeNotification = @"SJDe
         _automaticallyDisplaySystemVolumeView = YES;
         mControllers = NSHashTable.weakObjectsHashTable;
         mSysVolumeView = SJDeviceVolumeAndBrightness.shared.sysVolumeView;
-        [self _makeHidingForSysVolumeView];
+        [self _makeHidingForSysVolumeViewInWindow:SJPlayerWindowForView(nil)];
     }
     return self;
 }
@@ -370,7 +371,7 @@ static NSNotificationName const SJDeviceBrightnessDidChangeNotification = @"SJDe
         for ( id<SJDeviceVolumeAndBrightnessController> controller in mControllers ) {
             UIView *targetView = controller.target;
             UIWindow *targetViewWindow = targetView.window;
-            UIWindow *appKeyWindow = UIApplication.sharedApplication.keyWindow;
+            UIWindow *appKeyWindow = targetViewWindow.isKeyWindow ? targetViewWindow : nil;
             if ( targetViewWindow == nil || targetViewWindow != appKeyWindow ) {
                 // 1. 未显示或不在keyWindow中时则略过
                 continue;
@@ -380,7 +381,7 @@ static NSNotificationName const SJDeviceBrightnessDidChangeNotification = @"SJDe
             // 2.1
             if ( ctx.isFullscreen || ctx.isFitOnScreen ) {
                 needsShowing = NO;
-                [self _makeHidingForSysVolumeView];
+                [self _makeHidingForSysVolumeViewInWindow:targetViewWindow];
                 break;
             }
             // 2.2
@@ -405,7 +406,7 @@ static NSNotificationName const SJDeviceBrightnessDidChangeNotification = @"SJDe
                 }
                 // 2.2.x
                 needsShowing = NO;
-                [self _makeHidingForSysVolumeView];
+                [self _makeHidingForSysVolumeViewInWindow:targetViewWindow];
             }
         }
     }
@@ -415,8 +416,7 @@ static NSNotificationName const SJDeviceBrightnessDidChangeNotification = @"SJDe
 #pragma mark - mark
 
 // 隐藏系统音量条
-- (void)_makeHidingForSysVolumeView {
-    UIWindow *window = UIApplication.sharedApplication.keyWindow;
+- (void)_makeHidingForSysVolumeViewInWindow:(UIWindow *)window {
     if ( mSysVolumeView.superview != window ) [window addSubview:mSysVolumeView];
 }
 

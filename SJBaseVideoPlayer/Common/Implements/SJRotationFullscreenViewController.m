@@ -7,6 +7,7 @@
 //
 
 #import "SJRotationFullscreenViewController.h"
+#import "SJPlayerWindowContext.h"
 
 @interface SJRotationFullscreenView : UIView
 @end
@@ -15,14 +16,14 @@
 - (UIEdgeInsets)safeAreaInsets {
     CGSize size = self.bounds.size;
     if ( size.width > size.height ) return [super safeAreaInsets];
-    return [UIApplication.sharedApplication.keyWindow safeAreaInsets];
+    return self.window != nil ? self.window.safeAreaInsets : [super safeAreaInsets];
 }
 @end
 
 @implementation SJRotationFullscreenViewController
 
 - (void)loadView {
-    self.view = [SJRotationFullscreenView.alloc initWithFrame:UIScreen.mainScreen.bounds];
+    self.view = [SJRotationFullscreenView.alloc initWithFrame:CGRectZero];
 }
 
 - (void)viewDidLoad {

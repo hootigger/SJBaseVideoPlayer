@@ -8,23 +8,14 @@
 
 #import "SJRotationManager_iOS_16_Later.h"
 #import "SJRotationManagerInternal.h"
+#import "SJPlayerWindowContext.h"
 #import "SJRotationFullscreenViewController.h"
 
 API_AVAILABLE(ios(16.0))
 @interface SJRotationPortraitOrientationFixingWindow : UIWindow
-+ (instancetype)shared;
 @end
 
 @implementation SJRotationPortraitOrientationFixingWindow
-+ (instancetype)shared {
-    static id instance;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        instance = [SJRotationPortraitOrientationFixingWindow.alloc initWithWindowScene:UIApplication.sharedApplication.keyWindow.windowScene ?: (UIWindowScene *)UIApplication.sharedApplication.connectedScenes.anyObject];
-    });
-    return instance;
-}
-
 - (void)setBackgroundColor:(nullable UIColor *)backgroundColor {}
 
 @end
@@ -37,10 +28,20 @@ API_AVAILABLE(ios(16.0)) @protocol _SJ_iOS_16_IDE_InvisibleMethods <NSObject>
 #endif
 
 @interface SJRotationManager_iOS_16_Later ()
+@property (nonatomic, strong, readonly) SJRotationPortraitOrientationFixingWindow *portraitFixingWindow;
 @property (nonatomic, strong, readonly) SJRotationFullscreenViewController *rotationFullscreenViewController;
 @end
 
 @implementation SJRotationManager_iOS_16_Later
+@synthesize portraitFixingWindow = _portraitFixingWindow;
+- (SJRotationPortraitOrientationFixingWindow *)portraitFixingWindow {
+    UIWindowScene *scene = self.window.windowScene;
+    if (scene == nil) return nil;
+    if (_portraitFixingWindow == nil || _portraitFixingWindow.windowScene != scene) {
+        _portraitFixingWindow = [[SJRotationPortraitOrientationFixingWindow alloc] initWithWindowScene:scene];
+    }
+    return _portraitFixingWindow;
+}
 @synthesize rotationFullscreenViewController = _rotationFullscreenViewController;
 - (SJRotationFullscreenViewController *)rotationFullscreenViewController {
     if ( _rotationFullscreenViewController == nil ) {
@@ -58,7 +59,7 @@ API_AVAILABLE(ios(16.0)) @protocol _SJ_iOS_16_IDE_InvisibleMethods <NSObject>
 }
 
 - (UIInterfaceOrientationMask)supportedInterfaceOrientationsForWindow:(nullable UIWindow *)window {
-    if ( window == SJRotationPortraitOrientationFixingWindow.shared )
+    if ( window != nil && window == _portraitFixingWindow )
         return 1 << UIInterfaceOrientationPortrait;
     if ( window == self.window )
         return 1 << self.currentOrientation;
@@ -86,6 +87,10 @@ API_AVAILABLE(ios(16.0)) @protocol _SJ_iOS_16_IDE_InvisibleMethods <NSObject>
         return;
     }
 
+    if (self.superview.window == nil || self.window == nil) {
+        if (completionHandler != nil) completionHandler(self);
+        return;
+    }
     self.currentOrientation = orientation;
     [self rotationBegin];
     
@@ -94,7 +99,7 @@ API_AVAILABLE(ios(16.0)) @protocol _SJ_iOS_16_IDE_InvisibleMethods <NSObject>
     CGRect sourceFrame = [self.superview convertRect:self.superview.bounds toView:sourceWindow];
         
     // prepare
-    CGRect screenBounds = UIScreen.mainScreen.bounds;
+    CGRect screenBounds = sourceWindow.bounds;
     CGFloat maxSize = MAX(screenBounds.size.width, screenBounds.size.height);
     CGFloat minSize = MIN(screenBounds.size.width, screenBounds.size.height);
 
@@ -125,7 +130,7 @@ API_AVAILABLE(ios(16.0)) @protocol _SJ_iOS_16_IDE_InvisibleMethods <NSObject>
         [self.target snapshotViewAfterScreenUpdates:YES];
         [self.target layoutIfNeeded];
         [UIView performWithoutAnimation:^{
-            [SJRotationPortraitOrientationFixingWindow.shared makeKeyAndVisible];
+            [self.portraitFixingWindow makeKeyAndVisible];
             [self.window setHidden:YES];
             [self setNeedsUpdateOfSupportedInterfaceOrientations];
         }];
@@ -198,8 +203,8 @@ API_AVAILABLE(ios(16.0)) @protocol _SJ_iOS_16_IDE_InvisibleMethods <NSObject>
         } completion:^(BOOL finished) {
             [self.target setAutoresizingMask:UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight];
             if      ( toOrientation == SJOrientation_Portrait ) {
-                [sourceWindow becomeKeyWindow];
-                [SJRotationPortraitOrientationFixingWindow.shared setHidden:YES];
+                [sourceWindow makeKeyWindow];
+                [self.portraitFixingWindow setHidden:YES];
                 [self.superview addSubview:self.target];
                 self.target.transform = CGAffineTransformIdentity;
                 self.target.bounds = self.superview.bounds;
@@ -230,11 +235,11 @@ API_AVAILABLE(ios(16.0)) @protocol _SJ_iOS_16_IDE_InvisibleMethods <NSObject>
 
 - (void)setNeedsUpdateOfSupportedInterfaceOrientations {
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= 160000
-    [UIApplication.sharedApplication.keyWindow.rootViewController setNeedsUpdateOfSupportedInterfaceOrientations];
+    [SJPlayerWindowForView(self.superview).rootViewController setNeedsUpdateOfSupportedInterfaceOrientations];
     [self.window.rootViewController setNeedsUpdateOfSupportedInterfaceOrientations];
 #else
     if ( [self.window.rootViewController respondsToSelector:@selector(setNeedsUpdateOfSupportedInterfaceOrientations)] ) {
-        [(id)UIApplication.sharedApplication.keyWindow.rootViewController setNeedsUpdateOfSupportedInterfaceOrientations];
+        [(id)SJPlayerWindowForView(self.superview).rootViewController setNeedsUpdateOfSupportedInterfaceOrientations];
         [(id)self.window.rootViewController setNeedsUpdateOfSupportedInterfaceOrientations];
     }
     else {

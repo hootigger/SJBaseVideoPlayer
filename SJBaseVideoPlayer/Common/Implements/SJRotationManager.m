@@ -7,6 +7,7 @@
 //
 
 #import "SJRotationManager.h"
+#import "SJPlayerWindowContext.h"
 #import "SJRotationManagerInternal.h"
 #import "SJRotationObserver.h"
 #import "SJRotationManager_iOS_16_Later.h"
@@ -123,6 +124,11 @@
 }
 
 - (UIWindow *)window {
+    if (_window == nil) [self _prepareWindowForRotation];
+    if (@available(iOS 13.0, *)) {
+        UIWindowScene *scene = self.superview.window.windowScene;
+        if (scene != nil && _window.windowScene != scene) _window.windowScene = scene;
+    }
     return _window;
 }
 
@@ -257,7 +263,9 @@
 
 - (void)_prepareWindowForRotation {
     if ( @available(iOS 13.0, *) ) {
-        _window = [SJRotationFullscreenWindow.alloc initWithWindowScene:UIApplication.sharedApplication.keyWindow.windowScene ?: (UIWindowScene *)UIApplication.sharedApplication.connectedScenes.anyObject delegate:self];
+        UIWindowScene *scene = SJPlayerWindowForView(self.superview).windowScene;
+        if (scene == nil) return; // Retry when window is next requested after Scene attachment.
+        _window = [SJRotationFullscreenWindow.alloc initWithWindowScene:scene delegate:self];
     }
     else {
         _window = [SJRotationFullscreenWindow.alloc initWithFrame:UIScreen.mainScreen.bounds delegate:self];
@@ -354,7 +362,15 @@ API_DEPRECATED("deprecated!", ios(13.0, 16.0)) @implementation UIViewController 
 //        }
 //    }
     
-    UIWindow *keyWindow = UIApplication.sharedApplication.keyWindow;
+    UIWindow *keyWindow;
+    if (@available(iOS 13.0, *)) {
+        keyWindow = self.view.window;
+        for (UIWindow *window in self.view.window.windowScene.windows) {
+            if (window.isKeyWindow) { keyWindow = window; break; }
+        }
+    } else {
+        keyWindow = SJPlayerWindowForView(self.view);
+    }
     UIWindow *otherWindow = self.view.window;
     if ( [keyWindow isKindOfClass:SJRotationFullscreenWindow.class] && otherWindow != nil ) {
         SJRotationManager *manager = ((SJRotationFullscreenWindow *)keyWindow).rotationManager;

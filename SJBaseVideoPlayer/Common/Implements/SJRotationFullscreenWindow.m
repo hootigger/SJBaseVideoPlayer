@@ -44,7 +44,11 @@
 }
 
 - (void)_setup {
-    self.frame = UIScreen.mainScreen.bounds;
+    if (@available(iOS 13.0, *)) {
+        self.frame = self.windowScene.coordinateSpace.bounds;
+    } else {
+        self.frame = UIScreen.mainScreen.bounds;
+    }
 }
 
 - (void)setBackgroundColor:(nullable UIColor *)backgroundColor {}

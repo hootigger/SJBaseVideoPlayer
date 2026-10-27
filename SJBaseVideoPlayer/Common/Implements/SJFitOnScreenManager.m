@@ -6,6 +6,7 @@
 //
 
 #import "SJFitOnScreenManager.h"
+#import "SJPlayerWindowContext.h"
 #import "UIViewController+SJBaseVideoPlayerExtended.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -162,7 +163,7 @@ static NSNotificationName const SJFitOnScreenManagerTransitioningValueDidChangeN
 }
 
 - (UIViewController *)topMostController {
-    UIViewController *topController = UIApplication.sharedApplication.keyWindow.rootViewController;
+    UIViewController *topController = SJPlayerWindowForView(self.superview).rootViewController;
     while( topController.presentedViewController != nil ) {
         topController = topController.presentedViewController;
     }
@@ -209,7 +210,7 @@ static NSNotificationName const SJFitOnScreenManagerTransitioningValueDidChangeN
 }
 
 - (void)_presentedAnimationWithDuration:(NSTimeInterval)duration completionHandler:(nullable SJAnimationCompletionHandler)completion {
-    CGRect frame = [self.superview convertRect:self.superview.bounds toView:UIApplication.sharedApplication.keyWindow];
+    CGRect frame = [self.superview convertRect:self.superview.bounds toView:self.viewController.view];
     self.target.frame = frame;
     [self.viewController.view addSubview:self.target];
     [UIView animateWithDuration:duration animations:^{
@@ -222,7 +223,7 @@ static NSNotificationName const SJFitOnScreenManagerTransitioningValueDidChangeN
 }
 
 - (void)_dismissedAnimationWithDuration:(NSTimeInterval)duration completionHandler:(nullable SJAnimationCompletionHandler)completion {
-    CGRect frame = [self.superview convertRect:self.superview.bounds toView:UIApplication.sharedApplication.keyWindow];
+    CGRect frame = [self.superview convertRect:self.superview.bounds toView:self.viewController.view];
     [UIView animateWithDuration:duration animations:^{
         self.target.frame = frame;
         [self.target layoutIfNeeded];
