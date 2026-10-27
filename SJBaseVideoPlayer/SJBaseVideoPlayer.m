@@ -99,6 +99,13 @@ typedef struct _SJPlayerControlInfo {
     
 } _SJPlayerControlInfo;
 
+static dispatch_queue_t SJAudioSessionQueue(void) {
+    static dispatch_queue_t queue;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{ queue = dispatch_queue_create("com.SJVideoPlayer.audio-session", DISPATCH_QUEUE_SERIAL); });
+    return queue;
+}
+
 @interface SJBaseVideoPlayer ()<SJVideoPlayerPresentViewDelegate, SJPlayerViewDelegate>
 @property (nonatomic) _SJPlayerControlInfo *controlInfo;
 
@@ -163,6 +170,7 @@ typedef struct _SJPlayerControlInfo {
     AVAudioSessionCategory _mCategory;
     AVAudioSessionCategoryOptions _mCategoryOptions;
     AVAudioSessionSetActiveOptions _mSetActiveOptions;
+    NSUInteger _audioSessionPlaybackRequest;
 }
 
 + (instancetype)player {
@@ -840,22 +848,20 @@ typedef struct _SJPlayerControlInfo {
     _mCategory = category;
     _mCategoryOptions = options;
     
-    NSError *error = nil;
-    if ( ![AVAudioSession.sharedInstance setCategory:_mCategory withOptions:_mCategoryOptions error:&error] ) {
-#ifdef DEBUG
-        NSLog(@"%@", error);
-#endif
-    }
+    dispatch_async(SJAudioSessionQueue(), ^{
+        NSError *error = nil;
+        [AVAudioSession.sharedInstance setCategory:category withOptions:options error:&error];
+        if (error != nil) NSLog(@"SJ audio category: %@", error);
+    });
 }
 
 - (void)setActiveOptions:(AVAudioSessionSetActiveOptions)options {
     _mSetActiveOptions = options;
-    NSError *error = nil;
-    if ( ![AVAudioSession.sharedInstance setActive:YES withOptions:_mSetActiveOptions error:&error] ) {
-#ifdef DEBUG
-        NSLog(@"%@", error);
-#endif
-    }
+    dispatch_async(SJAudioSessionQueue(), ^{
+        NSError *error = nil;
+        [AVAudioSession.sharedInstance setActive:YES withOptions:options error:&error];
+        if (error != nil) NSLog(@"SJ audio activation: %@", error);
+    });
 }
 @end
 
@@ -1186,23 +1192,33 @@ typedef struct _SJPlayerControlInfo {
         return;
     }
     
-    if (_controlInfo->audioSessionControl.isEnabled) {
-        NSError *error = nil;
-        if ( ![AVAudioSession.sharedInstance setCategory:_mCategory withOptions:_mCategoryOptions error:&error] ) {
-#ifdef DEBUG
-            NSLog(@"%@", error);
-#endif
-        }
-        if ( ![AVAudioSession.sharedInstance setActive:YES withOptions:_mSetActiveOptions error:&error] ) {
-#ifdef DEBUG
-            NSLog(@"%@", error);
-#endif
-        }
+    NSUInteger request = ++_audioSessionPlaybackRequest;
+    if (!_controlInfo->audioSessionControl.isEnabled) {
+        [_playbackController play];
+        [self.controlLayerAppearManager resume];
+        return;
     }
 
-    [_playbackController play];
-
-    [self.controlLayerAppearManager resume];
+    AVAudioSessionCategory category = _mCategory;
+    AVAudioSessionCategoryOptions categoryOptions = _mCategoryOptions;
+    AVAudioSessionSetActiveOptions activeOptions = _mSetActiveOptions;
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(SJAudioSessionQueue(), ^{
+        NSError *error = nil;
+        [AVAudioSession.sharedInstance setCategory:category withOptions:categoryOptions error:&error];
+        if (error != nil) NSLog(@"SJ audio category: %@", error);
+        error = nil;
+        [AVAudioSession.sharedInstance setActive:YES withOptions:activeOptions error:&error];
+        if (error != nil) NSLog(@"SJ audio activation: %@", error);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) self = weakSelf;
+            // Pause/stop or a newer play request cancels playback pending activation.
+            if (self == nil || self->_audioSessionPlaybackRequest != request) return;
+            if (self.registrar.state == SJVideoPlayerAppState_Background && self.isPausedInBackground) return;
+            [self->_playbackController play];
+            [self.controlLayerAppearManager resume];
+        });
+    });
 }
 
 - (void)pause {
@@ -1211,6 +1227,7 @@ typedef struct _SJPlayerControlInfo {
             return;
     }
     
+    ++_audioSessionPlaybackRequest;
     [_playbackController pause];
 }
 
@@ -1225,6 +1242,7 @@ typedef struct _SJPlayerControlInfo {
             return;
     }
     
+    ++_audioSessionPlaybackRequest;
     [self _postNotification:SJVideoPlayerPlaybackWillStopNotification];
 
     _controlInfo->playbackControl.isUserPaused = NO;
@@ -1239,6 +1257,7 @@ typedef struct _SJPlayerControlInfo {
 }
 
 - (void)replay {
+    ++_audioSessionPlaybackRequest;
     if ( !self.URLAsset ) return;
     if ( self.assetStatus == SJAssetStatusFailed ) {
         [self refresh];
